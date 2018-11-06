@@ -75,19 +75,35 @@ def conv(inputs,
     bias_attr = fluid.param_attr.ParamAttr(
         regularizer=fluid.regularizer.L2Decay(0.))
 
-    return fluid.layers.conv2d(
-        inputs,
-        filters,
-        kernel,
-        stride=strides,
-        padding=0,
-        dilation=dilation,
-        groups=num_groups,
-        name=name,
-        param_attr=param_attr if conv_param is None else conv_param,
-        use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
-        bias_attr=bias_attr,
-        act=act)
+    if act=='lrelu':
+        conv = fluid.layers.conv2d(
+            inputs,
+            filters,
+            kernel,
+            stride=strides,
+            padding=0,
+            dilation=dilation,
+            groups=num_groups,
+            name=name,
+            param_attr=param_attr if conv_param is None else conv_param,
+            use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
+            bias_attr=bias_attr,
+            act=None)
+        return fluid.layers.leaky_relu(conv)
+    else:
+        return fluid.layers.conv2d(
+            inputs,
+            filters,
+            kernel,
+            stride=strides,
+            padding=0,
+            dilation=dilation,
+            groups=num_groups,
+            name=name,
+            param_attr=param_attr if conv_param is None else conv_param,
+            use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
+            bias_attr=bias_attr,
+            act=act)
 
 
 def sep(inputs, filters, kernel, strides=(1, 1), dilation=(1, 1)):
@@ -192,7 +208,7 @@ def global_avgpool(inputs):
         ceil_mode=True)
 
 
-def fully_connected(inputs, units):
+def fully_connected(inputs, units, act=None, name=None):
     n = inputs.shape[1]
     param_attr = fluid.param_attr.ParamAttr(
         initializer=fluid.initializer.NormalInitializer(
@@ -201,20 +217,37 @@ def fully_connected(inputs, units):
 
     bias_attr = fluid.param_attr.ParamAttr(
         regularizer=fluid.regularizer.L2Decay(0.))
-
-    return fluid.layers.fc(inputs,
+    
+    if act=='lrelu':
+        out = fluid.layers.fc(inputs,
                            units,
                            param_attr=param_attr,
-                           bias_attr=bias_attr)
+                           bias_attr=bias_attr,
+                           name=name)
+        return fluid.layers.leaky_relu(out)
+    else:
+        return fluid.layers.fc(inputs,
+                            units,
+                            param_attr=param_attr,
+                            bias_attr=bias_attr,
+                            act=act,
+                            name=name)
 
 
-def bn_relu(inputs, is_test=False, name=None):
+def bn(inputs, is_test=False, act=None, name=None):
     """ batch norm + relu layer """
 
-    output = fluid.layers.batch_norm(
-        inputs, is_test=is_test, epsilon=0.001, data_layout="NCHW", name=name+'_bn')
-    return fluid.layers.relu(output, name=name+'_relu')
+    return fluid.layers.batch_norm(
+        inputs, is_test=is_test, epsilon=0.001, data_layout="NCHW", act=act, name=name+'_bn')
 
+
+# need implement!!
+def SubpixelConv(n, scale=2, n_out_channel=None, act=None, name=None):
+    return 
+
+# need implement!!
+def UpSampling2dLayer(n, size=None, is_scale=False, method=1, align_corners=False, name=None):
+    return 
 
 def dropout(inputs):
     """ dropout layer """
