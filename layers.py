@@ -38,13 +38,18 @@ def calc_padding(img_width, stride, dilation, filter_width):
         pad_along_width = max(filter_width - (img_width % stride), 0)
     return pad_along_width // 2, pad_along_width - pad_along_width // 2
 
+def elementwise_add(x, y, axis=-1, act=None, name=None):
+    return fluid.layers.elementwise_add(x, y, axis=-1, act=None, name=None)
 
 def conv(inputs,
          filters,
          kernel,
          strides=(1, 1),
          dilation=(1, 1),
+         act = None,
          num_groups=1,
+        #  w_init=True,
+         name=None,
          conv_param=None):
     """ normal conv layer """
 
@@ -53,6 +58,8 @@ def conv(inputs,
     else:
         n = kernel * kernel * inputs.shape[1]
 
+    # if w_init:
+    #     w_param = fluid.initializer.NormalInitializer
     # pad input
     padding = (0, 0, 0, 0) \
         + calc_padding(inputs.shape[2], strides[0], dilation[0], kernel[0]) \
@@ -76,10 +83,11 @@ def conv(inputs,
         padding=0,
         dilation=dilation,
         groups=num_groups,
+        name=name,
         param_attr=param_attr if conv_param is None else conv_param,
         use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
         bias_attr=bias_attr,
-        act=None)
+        act=act)
 
 
 def sep(inputs, filters, kernel, strides=(1, 1), dilation=(1, 1)):
@@ -200,12 +208,12 @@ def fully_connected(inputs, units):
                            bias_attr=bias_attr)
 
 
-def bn_relu(inputs):
-    """ batch norm + rely layer """
+def bn_relu(inputs, is_test=False, name=None):
+    """ batch norm + relu layer """
 
     output = fluid.layers.batch_norm(
-        inputs, momentum=FLAGS.bn_decay, epsilon=0.001, data_layout="NCHW")
-    return fluid.layers.relu(output)
+        inputs, is_test=is_test, epsilon=0.001, data_layout="NCHW", name=name+'_bn')
+    return fluid.layers.relu(output, name=name+'_relu')
 
 
 def dropout(inputs):
