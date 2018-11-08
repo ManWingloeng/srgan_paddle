@@ -8,7 +8,8 @@ import logging, scipy
 
 import paddle
 import paddle.fluid as fluid
-from model import SRGAN_g, SRGAN_d, Vgg19_simple_api
+from model import SRGAN_g, SRGAN_d
+import vgg
 from utils import *
 from config import config, log_config
 
@@ -27,14 +28,25 @@ decay_every = config.TRAIN.decay_every
 ni = int(np.sqrt(batch_size))
 
 def train():
-        ## create folders to save result images and trained model
-        save_dir_ginit = "samples/train_ginit"
-        save_dir_gan = "samples/train_gan"
-        if not os.path.isdir(save_dir_ginit):
-            os.makedirs(save_dir_ginit)
-        if not os.path.isdir(save_dir_gan):
-            os.makedirs(save_dir_gan)
-        checkpoint_dir = "checkpoint"
-        if not os.path.isdir(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
+    ## create folders to save result images and trained model
+    save_dir_ginit = "samples/train_ginit"
+    save_dir_gan = "samples/train_gan"
+    if not os.path.isdir(save_dir_ginit):
+        os.makedirs(save_dir_ginit)
+    if not os.path.isdir(save_dir_gan):
+        os.makedirs(save_dir_gan)
+    checkpoint_dir = "checkpoint"
+    if not os.path.isdir(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+
         
+        
+
+
+
+    ###========================== DEFINE MODEL ============================###
+    ## train inference
+    # LR img 
+    t_image = fluid.layers.data(name='t_image_input_to_SRGAN_generator', shape=[-1, 3, 96, 96])
+    # HR img
+    t_target_image = fluid.layers.data(name='t_target_image', shape=[-1, 3, 384, 384])
