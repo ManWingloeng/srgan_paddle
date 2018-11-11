@@ -27,12 +27,12 @@ def SRGAN_g(t_image, is_test=False):
         # B residual blacks end
 
         n = conv(n, 256, 3, name='n256s1/1')
-        n = SubpixelConv(n, scale=2, n_out_channel=None, act='relu', name='pixelshufflerx2/1')
+        n = SubpixelConv_relu(n, scale=2, name='pixelshufflerx2/1')
 
         n = conv(n, 256, 3, name='n256s1/1')
-        n = SubpixelConv(n, scale=2, n_out_channel=None, act='relu', name='pixelshufflerx2/1')
+        n = SubpixelConv_relu(n, scale=2, name='pixelshufflerx2/1')
 
-        n = conv(n, 3, 1, act='tanh', name='out')# is that work??tanh 
+        n = conv(n, 3, 1, act='tanh', name='out')
         return n
 
 def SRGAN_g2(t_image, is_test=False):
@@ -56,11 +56,11 @@ def SRGAN_g2(t_image, is_test=False):
         n = elementwise_add(n, temp, name='add3')
         # B residual blacks end
 
-        n = UpSampling2dLayer(n, size=[size[1] * 2, size[2] * 2], is_scale=False, method=1, align_corners=False, name='up1/upsample2d')
+        n = UpSampling2dLayer(n, out_shape=[size[2] * 2, size[3] * 2], method='NEAREST', name='up1/upsample2d')
         n = conv(n, 64, 3, name='up1/conv2d')
         n = bn(n, act='relu', is_test=is_test, name='up1/batch_norm')
 
-        n = UpSampling2dLayer(n, size=[size[1] * 4, size[2] * 4], is_scale=False, method=1, align_corners=False, name='up2/upsample2d')
+        n = UpSampling2dLayer(n, out_shape=[size[2] * 4, size[3] * 4], method='NEAREST', name='up2/upsample2d')
         n = conv(n, 32, 3, name='up2/conv2d')
         n = bn(n, act='relu', is_test=is_test, name='up2/batch_norm')
 

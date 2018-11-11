@@ -235,19 +235,42 @@ def fully_connected(inputs, units, act=None, name=None):
 
 
 def bn(inputs, is_test=False, act=None, name=None):
-    """ batch norm + relu layer """
+    # batch norm
 
     return fluid.layers.batch_norm(
         inputs, is_test=is_test, epsilon=0.001, data_layout="NCHW", act=act, name=name+'_bn')
 
 
-# need implement!!
-def SubpixelConv(n, scale=2, n_out_channel=None, act=None, name=None):
-    return 
+def PixelShuffle(inputs, scale=2):
+    size = inputs.shape
+    batch_size = size[0]
+    c = size[1]
+    h = size[2]
+    w = size[3]
+    
+    # Get the target channel size
+    channel_target = c // (scale * scale)
+    channel_factor = c // channel_target
+
+    # shape_1 = [batch_size, channel_factor // scale, channel_factor // scale, h, w]
+    # shape_2 = [batch_size, 1, h * scale, w * scale]
+
+    # Reshape and transpose for periodic shuffling for each channel
+    input_split = fluid.layers.split(inputs, channel_target, dim=1)
+    output = fluid.layers.concat(input_split, axis=1)
+
+    return output
 
 # need implement!!
-def UpSampling2dLayer(n, size=None, is_scale=False, method=1, align_corners=False, name=None):
-    return 
+def SubpixelConv_relu(n, scale=2, name=None):
+    # pixelshuffle + relu
+    output = PixelShuffle(n)
+    return fluid.layers.relu(output, name=name)
+
+# need implement!!
+def UpSampling2dLayer(n, out_shape=None, method='NEAREST', name=None):
+    output = fluid.layers.image_resize(n, out_shape=out_shape, resample=method, name=name)
+    return output
 
 def dropout(inputs):
     """ dropout layer """
