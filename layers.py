@@ -19,6 +19,7 @@ from __future__ import print_function
 import operator
 
 import numpy as np
+import paddle.v2 as paddle
 import paddle.fluid as fluid
 from absl import flags
 
@@ -27,7 +28,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_float("bn_decay", 0.9, "batch norm decay")
 flags.DEFINE_float("dropout_rate", 0.5, "dropout rate")
 
-
+flag_weight_decay = 0.0004
 def calc_padding(img_width, stride, dilation, filter_width):
     """ calculate pixels to padding in order to keep input/output size same. """
 
@@ -61,6 +62,8 @@ def conv(inputs,
     # if w_init:
     #     w_param = fluid.initializer.NormalInitializer
     # pad input
+    if isinstance(kernel, int):
+        kernel=(kernel, kernel)
     padding = (0, 0, 0, 0) \
         + calc_padding(inputs.shape[2], strides[0], dilation[0], kernel[0]) \
         + calc_padding(inputs.shape[3], strides[1], dilation[1], kernel[1])
@@ -70,40 +73,24 @@ def conv(inputs,
     param_attr = fluid.param_attr.ParamAttr(
         initializer=fluid.initializer.NormalInitializer(
             0.0, scale=np.sqrt(2.0 / n)),
-        regularizer=fluid.regularizer.L2Decay(FLAGS.weight_decay))
+        regularizer=fluid.regularizer.L2Decay(flag_weight_decay))
 
     bias_attr = fluid.param_attr.ParamAttr(
         regularizer=fluid.regularizer.L2Decay(0.))
 
-    if act=='lrelu':
-        conv = fluid.layers.conv2d(
-            inputs,
-            filters,
-            kernel,
-            stride=strides,
-            padding=0,
-            dilation=dilation,
-            groups=num_groups,
-            name=name,
-            param_attr=param_attr if conv_param is None else conv_param,
-            use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
-            bias_attr=bias_attr,
-            act=None)
-        return fluid.layers.leaky_relu(conv)
-    else:
-        return fluid.layers.conv2d(
-            inputs,
-            filters,
-            kernel,
-            stride=strides,
-            padding=0,
-            dilation=dilation,
-            groups=num_groups,
-            name=name,
-            param_attr=param_attr if conv_param is None else conv_param,
-            use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
-            bias_attr=bias_attr,
-            act=act)
+    return fluid.layers.conv2d(
+        inputs,
+        filters,
+        kernel,
+        stride=strides,
+        padding=0,
+        dilation=dilation,
+        groups=num_groups,
+        name=name,
+        param_attr=param_attr if conv_param is None else conv_param,
+        use_cudnn=False if num_groups == inputs.shape[1] == filters else True,
+        bias_attr=bias_attr,
+        act=act)
 
 
 def sep(inputs, filters, kernel, strides=(1, 1), dilation=(1, 1)):
@@ -123,12 +110,12 @@ def sep(inputs, filters, kernel, strides=(1, 1), dilation=(1, 1)):
     depthwise_param = fluid.param_attr.ParamAttr(
         initializer=fluid.initializer.NormalInitializer(
             0.0, scale=np.sqrt(2.0 / n_depth)),
-        regularizer=fluid.regularizer.L2Decay(FLAGS.weight_decay))
+        regularizer=fluid.regularizer.L2Decay(flag_weight_decay))
 
     pointwise_param = fluid.param_attr.ParamAttr(
         initializer=fluid.initializer.NormalInitializer(
             0.0, scale=np.sqrt(2.0 / n_point)),
-        regularizer=fluid.regularizer.L2Decay(FLAGS.weight_decay))
+        regularizer=fluid.regularizer.L2Decay(flag_weight_decay))
 
     depthwise_conv = conv(
         inputs=inputs,
@@ -213,20 +200,12 @@ def fully_connected(inputs, units, act=None, name=None):
     param_attr = fluid.param_attr.ParamAttr(
         initializer=fluid.initializer.NormalInitializer(
             0.0, scale=np.sqrt(2.0 / n)),
-        regularizer=fluid.regularizer.L2Decay(FLAGS.weight_decay))
+        regularizer=fluid.regularizer.L2Decay(flag_weight_decay))
 
     bias_attr = fluid.param_attr.ParamAttr(
         regularizer=fluid.regularizer.L2Decay(0.))
     
-    if act=='lrelu':
-        out = fluid.layers.fc(inputs,
-                           units,
-                           param_attr=param_attr,
-                           bias_attr=bias_attr,
-                           name=name)
-        return fluid.layers.leaky_relu(out)
-    else:
-        return fluid.layers.fc(inputs,
+    return fluid.layers.fc(inputs,
                             units,
                             param_attr=param_attr,
                             bias_attr=bias_attr,
@@ -252,11 +231,16 @@ def PixelShuffle(inputs, scale=2):
     channel_target = c // (scale * scale)
     channel_factor = c // channel_target
 
+    # print("c:",c)
+    # print("channel_target:",channel_target)
+    # print("inputs:",inputs)
+    channel_target=int(channel_target)
     # shape_1 = [batch_size, channel_factor // scale, channel_factor // scale, h, w]
     # shape_2 = [batch_size, 1, h * scale, w * scale]
 
     # Reshape and transpose for periodic shuffling for each channel
-    input_split = fluid.layers.split(inputs, channel_target, dim=1)
+    input_split = fluid.layers.split(inputs, num_or_sections=channel_target, dim=1)
+    
     output = fluid.layers.concat(input_split, axis=1)
 
     return output

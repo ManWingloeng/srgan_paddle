@@ -1,5 +1,5 @@
 import time
-import paddle
+import paddle.v2 as paddle
 import paddle.fluid as fluid
 from layers import *
 
@@ -70,31 +70,31 @@ def SRGAN_g2(t_image, is_test=False):
 def SRGAN_d2(t_image, is_test=False):
     with fluid.unique_name.guard():
         n = t_image
-        n = conv(n, 63, 3, act='lrelu', name='n64s1/c')
+        n = conv(n, 63, 3, act='leaky_relu', name='n64s1/c')
 
-        n = conv(n, 64, 3, (2, 2), act='lrelu', name='n64s2/c')
+        n = conv(n, 64, 3, (2, 2), act='leaky_relu', name='n64s2/c')
         n = bn(n, is_test=is_test, name='n64s2/b')
 
-        n = conv(n, 128, 3, act='lrelu', name='n128s1/c')
+        n = conv(n, 128, 3, act='leaky_relu', name='n128s1/c')
         n = bn(n, is_test=is_test, name='n128s1/b')
 
-        n = conv(n, 128, 3, (2, 2), act='lrelu', name='n128s2/c')
+        n = conv(n, 128, 3, (2, 2), act='leaky_relu', name='n128s2/c')
         n = bn(n, is_test=is_test, name='n128s2/b')
 
-        n = conv(n, 256, 3, act='lrelu', name='n256s1/c')
+        n = conv(n, 256, 3, act='leaky_relu', name='n256s1/c')
         n = bn(n, is_test=is_test, name='n256s1/b')
 
-        n = conv(n, 256, 3, (2, 2), act='lrelu', name='n256s2/c')
+        n = conv(n, 256, 3, (2, 2), act='leaky_relu', name='n256s2/c')
         n = bn(n, is_test=is_test, name='n256s2/b')
 
-        n = conv(n, 512, 3, act='lrelu', name='n512s1/c')
+        n = conv(n, 512, 3, act='leaky_relu', name='n512s1/c')
         n = bn(n, is_test=is_test, name='n512s1/b')
 
-        n = conv(n, 512, 3, (2, 2), act='lrelu', name='n512s2/c')
+        n = conv(n, 512, 3, (2, 2), act='leaky_relu', name='n512s2/c')
         n = bn(n, is_test=is_test, name='n512s2/b')
 
         n = fluid.layers.flatten(n, name='flatten')
-        n = fully_connected(n, units=1024, act='lrelu', name='fc1024')
+        n = fully_connected(n, units=1024, act='leaky_relu', name='fc1024')
         n = fully_connected(n, units=1, name='out')
 
         logits = n
@@ -102,38 +102,39 @@ def SRGAN_d2(t_image, is_test=False):
 
         return n, logits
 
-def SRGAN_d(input_images, is_test=is_test):
+def SRGAN_d(input_images, is_test=False):
     df_dim = 64
     with fluid.unique_name.guard():
         net_in = input_images
-        net_h0 = conv(net_in, df_dim , 4, (2, 2), act='lrelu', name='h0/c')
+        net_h0 = conv(net_in, df_dim , 4, (2, 2), act='leaky_relu', name='h0/c')
 
         net_h1 = conv(net_h0, df_dim*2, 4, (2, 2), name='h1/c')
-        net_h1 = bn(net_h1, act='lrelu', is_test=is_test, name='h1/bn')
+        net_h1 = bn(net_h1, act='leaky_relu', is_test=is_test, name='h1/bn')
         net_h2 = conv(net_h1, df_dim * 4, 4, (2, 2), name='h2/c')
-        net_h2 = bn(net_h2, act='lrelu', is_test=is_test,  name='h2/bn')
+        net_h2 = bn(net_h2, act='leaky_relu', is_test=is_test,  name='h2/bn')
         net_h3 = conv(net_h2, df_dim * 8, 4, (2, 2), name='h3/c')
-        net_h3 = bn(net_h3, act='lrelu', is_test=is_test, name='h3/bn')
+        net_h3 = bn(net_h3, act='leaky_relu', is_test=is_test, name='h3/bn')
         net_h4 = conv(net_h3, df_dim * 16, 4, (2, 2), name='h4/c')
-        net_h4 = bn(net_h4, act='lrelu', is_test=is_test,  name='h4/bn')
+        net_h4 = bn(net_h4, act='leaky_relu', is_test=is_test,  name='h4/bn')
         net_h5 = conv(net_h4, df_dim * 32, 4, (2, 2), name='h5/c')
-        net_h5 = bn(net_h5, act='lrelu', is_test=is_test, name='h5/bn')
+        net_h5 = bn(net_h5, act='leaky_relu', is_test=is_test, name='h5/bn')
         net_h6 = conv(net_h5, df_dim * 16, 1, (1, 1), name='h6/c')
-        net_h6 = bn(net_h6, act='lrelu', is_test=is_test, name='h6/bn')
+        net_h6 = bn(net_h6, act='leaky_relu', is_test=is_test, name='h6/bn')
         net_h7 = conv(net_h6, df_dim * 8, 1, (1, 1), name='h7/c')
         net_h7 = bn(net_h7, is_test=is_test, name='h7/bn')
 
         net = conv(net_h7, df_dim * 2, 1, (1, 1), name='res/c')
-        net = bn(net, act='lrelu', is_test=is_test,  name='res/bn')
+        net = bn(net, act='leaky_relu', is_test=is_test,  name='res/bn')
         net = conv(net, df_dim * 2, 3, (1, 1), name='res/c2')
-        net = bn(net, act='lrelu', is_test=is_test, name='res/bn2')
+        net = bn(net, act='leaky_relu', is_test=is_test, name='res/bn2')
         net = conv(net, df_dim * 8, 3, (1, 1), name='res/c3')
         net = bn(net, is_test=is_test, name='res/bn3')
         net_h8 = elementwise_add(net_h7, net, name='res/add')
         net_h8 = fluid.layers.sigmoid(net_h8)
 
         net_ho = fluid.layers.flatten(net_h8, name='h0/flatten')
-        net_ho = fully_connected(net_h0, units=1, act='identity', name='h0/fc')
+        net_ho = fully_connected(net_h0, units=1, name='h0/fc')
+        # net_ho = fluid.layers.identity()
         logits = net_ho
         net_ho = fluid.layers.sigmoid(net_ho)
 

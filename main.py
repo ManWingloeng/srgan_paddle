@@ -46,7 +46,20 @@ def train():
 
     ###========================== DEFINE MODEL ============================###
     ## train inference
-    # LR img 
-    t_image = fluid.layers.data(name='t_image_input_to_SRGAN_generator', shape=[-1, 3, 96, 96])
-    # HR img
-    t_target_image = fluid.layers.data(name='t_target_image', shape=[-1, 3, 384, 384])
+     
+    d_program = fluid.Program()
+    g_program = fluid.Program()
+    with fluid.program_guard(d_program):
+        # LR img
+        t_image = fluid.layers.data(name='t_image_input_to_SRGAN_generator', shape=[-1, 3, 96, 96])
+        # HR img
+        t_target_image = fluid.layers.data(name='t_target_image', shape=[-1, 3, 384, 384])
+
+        net_g = SRGAN_g(t_image, is_test=False)
+        print(net_g)
+        net_d, logits_real = SRGAN_d(t_target_image, is_test=False)
+        print(t_target_image)
+        _, logits_fake = SRGAN_d(net_g, is_test=False)
+    
+if __name__ == '__main__':
+    train()
