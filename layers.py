@@ -235,15 +235,23 @@ def PixelShuffle(inputs, scale=2):
     # print("channel_target:",channel_target)
     # print("inputs:",inputs)
     channel_target=int(channel_target)
-    # shape_1 = [batch_size, channel_factor // scale, channel_factor // scale, h, w]
-    # shape_2 = [batch_size, 1, h * scale, w * scale]
+    shape_1 = [batch_size, channel_factor // scale, channel_factor // scale, h, w]
+    shape_2 = [batch_size, 1, h * scale, w * scale]
 
     # Reshape and transpose for periodic shuffling for each channel
     input_split = fluid.layers.split(inputs, num_or_sections=channel_target, dim=1)
     
-    output = fluid.layers.concat(input_split, axis=1)
+    output = fluid.layers.concat([phaseShift(x, scale, shape_1, shape_2) for x in input_split], axis=1)
 
     return output
+
+
+def phaseShift(inputs, scale, shape_1, shape_2):
+    # Tackle the condition when the batch is None
+    X = fluid.layers.reshape(inputs, shape_1)
+    X = fluid.layers.transpose(X, [0, 1, 3, 2, 4])
+
+    return fluid.layers.reshape(X, shape_2)
 
 # need implement!!
 def SubpixelConv_relu(n, scale=2, name=None):
