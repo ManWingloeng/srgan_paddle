@@ -3,11 +3,11 @@ import paddle.v2 as paddle
 import paddle.fluid as fluid
 from layers import *
 
-def SRGAN_g(t_image, is_test=False, name='g'):
+def SRGAN_g(t_image, is_test=False, name='G'):
     """ Generator in Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network
     feature maps (n) and stride (s) feature maps (n) and stride (s)
     """
-    with fluid.unique_name.guard("SRGAN_g"):
+    with fluid.unique_name.guard(name+'_'):
         n = t_image
         n = conv(n, 64, 3, act='relu', name='n64s1/c')
         temp = n
@@ -35,7 +35,7 @@ def SRGAN_g(t_image, is_test=False, name='g'):
         n = conv(n, 3, 1, act='tanh', name='out')
         return n
 
-def SRGAN_g2(t_image, is_test=False, name='g2'):
+def SRGAN_g2(t_image, is_test=False, name='G2'):
     size = (t_image.shape).as_list()
     with fluid.unique_name.guard():
         n = t_image
@@ -67,7 +67,7 @@ def SRGAN_g2(t_image, is_test=False, name='g2'):
         n = conv(n, 3, 1, act='relu', name='out')
         return n
 
-def SRGAN_d2(t_image, is_test=False, name='d2'):
+def SRGAN_d2(t_image, is_test=False, name='D2'):
     with fluid.unique_name.guard():
         n = t_image
         n = conv(n, 63, 3, act='leaky_relu', name='n64s1/c')
@@ -102,7 +102,7 @@ def SRGAN_d2(t_image, is_test=False, name='d2'):
 
         return n, logits
 
-def SRGAN_d(input_images, is_test=False, name='d'):
+def SRGAN_d(input_images, is_test=False, name='D'):
     df_dim = 64
     with fluid.unique_name.guard():
         net_in = input_images
