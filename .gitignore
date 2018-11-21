@@ -2,3 +2,4 @@
 /vgg19_pd_params
 /VGG19_pd_model_param
 /.ipynb_checkpoints
+/data/*

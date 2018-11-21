@@ -1,4 +1,7 @@
+import paddle.v2 as paddle
 import paddle.fluid as fluid
+import numpy as np
+
 
 class VGG19():
 
@@ -31,9 +34,11 @@ class VGG19():
             param_attr=name + "_weights",
             bias_attr=name + "_biases")
 
-    def net(self, input):
-        y = input
 
+
+    def net(self, input):
+        # input = self.load_data(im, im.shape[1:])
+        y = input
         y = self._conv2d(y, num_filters=64, name="conv1_1")
         y = self._conv2d(y, num_filters=64, name="conv1_2")
         y = self._maxpool(y)

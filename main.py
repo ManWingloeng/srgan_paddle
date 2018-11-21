@@ -15,7 +15,7 @@ from config import config, log_config
 
 # we improt VGG19
 from vgg19 import VGG19
-
+import data_reader
 
 ###====================== HYPER-PARAMETERS ===========================###
 ## Adam
@@ -58,31 +58,57 @@ def train():
      
     d_program = fluid.Program()
     g_program = fluid.Program()
+    g_pretrain_program = fluid.Program()
 
+    g_vars = get_param(g_program, prefix='G')
+    d_vars = get_param(d_program, prefix='D')
+
+    opt = fluid.optimizer.Adam(learning_rate=lr_init, beta1=beta1)
+
+    with fluid.program_guard(g_pretrain_program):
+        # # LR img
+        t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
+        # HR img
+        t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
+        
+
+        # Generate the HR img from LR
+        net_g = SRGAN_g(t_image, is_test=False)
+        # mse loss
+        mse_loss = fluid.layers.reduce_mean(fluid.layers.square_error_cost(net_g, t_target_image))
+        ## pretrain
+        opt.minimize(loss=mse_loss, parameter_list=g_vars)
     with fluid.program_guard(d_program):
         # LR img
-        t_image = fluid.layers.data(name='t_image_input_to_SRGAN_generator', shape=[-1, 3, 96, 96])
+        t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
         # HR img
-        t_target_image = fluid.layers.data(name='t_target_image', shape=[-1, 3, 384, 384])
+        t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
 
         net_g = SRGAN_g(t_image, is_test=False)
         # print(net_g)
         net_d, logits_real = SRGAN_d(t_target_image, is_test=False)
         # print(t_target_image)
         _, logits_fake = SRGAN_d(net_g, is_test=False)
-        d_loss1 = fluid.layers.sigmoid_cross_entropy_with_logits(logits_real, 
-                fluid.layers.ones(shape=logits_real.shape, dtype='float32'), 
-                name='d1')
-        d_loss2 = fluid.layers.sigmoid_cross_entropy_with_logits(logits_fake, 
-                fluid.layers.ones(shape=logits_fake.shape, dtype='float32'), 
-                name='d2')
+
+        real_ones = fluid.layers.ones(shape=logits_real.shape, dtype='float32')
+        real_ones.stop_gradient = True
+        fake_ones = fluid.layers.ones(shape=logits_fake.shape, dtype='float32')
+        fake_ones.stop_gradient = True
+        d_loss1 = fluid.layers.reduce_mean(
+            fluid.layers.sigmoid_cross_entropy_with_logits(x=logits_real, 
+                label=real_ones, 
+                name='d1'))
+        d_loss2 = fluid.layers.reduce_mean(
+            fluid.layers.sigmoid_cross_entropy_with_logits(x=logits_fake, 
+                label=fake_ones, 
+                name='d2'))
         d_loss = d_loss1 + d_loss2
 
     with fluid.program_guard(g_program):
         # LR img
-        t_image = fluid.layers.data(name='t_image_input_to_SRGAN_generator', shape=[-1, 3, 96, 96])
+        t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
         # HR img
-        t_target_image = fluid.layers.data(name='t_target_image', shape=[-1, 3, 384, 384])
+        t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
 
         # Generate the HR img from LR
         net_g = SRGAN_g(t_image, is_test=False)
@@ -106,30 +132,73 @@ def train():
         ## vgg inference. 0, 1, 2, 3 BILINEAR NEAREST BICUBIC AREA
         t_target_image_224 = fluid.layers.resize_bilinear(t_target_image, out_shape=[224, 224])  # resize_target_image_for_vgg # http://tensorlayer.readthedocs.io/en/latest/_modules/tensorlayer/layers.html#UpSampling2dLayer
         t_predict_image_224 = fluid.layers.resize_bilinear(net_g, out_shape=[224, 224])  # resize_generate_image_for_vgg
-        
+        ## maybe just data layers is ok, preprocess before feed
+        # t_target_image_224 = fluid.layers.data(name='t_target_image_224', shape=[3, 224, 224])
+        # t_predict_image_224 = fluid.layers.data(name='t_predict_image_224', shape=[3, 224, 224])
+
+
+
         # vgg19_program, vgg19_feed_names, vgg19_fetch_targets = fluid.io.load_inference_model('./VGG19_pd_model_param', 
         #                                                            exe, 'vgg19_model', 'vgg19_params')
         
-        ### VGG19 is not resize the input!!!need implement!!! ###
+        # print t_target_image_224.shape
+        # tt_input = (t_target_image_224 + 1) / 2
+        # print tt_input
+        # vgg_target_emb = VGG19().net(t_target_image_224)
+        # vgg_predict_emb = VGG19().net(t_predict_image_224)
         vgg_target_emb = VGG19().net((t_target_image_224 + 1) / 2)
         vgg_predict_emb = VGG19().net((t_predict_image_224 + 1) / 2)
-
 
         vgg_loss = 2e-6 * fluid.layers.reduce_mean(fluid.layers.square_error_cost(
             vgg_predict_emb, vgg_target_emb))
 
         g_loss = mse_loss + g_gan_loss + vgg_loss
 
-    g_vars = get_param(g_program, prefix='G')
-    d_vars = get_param(d_program, prefix='D')
 
-    opt = fluid.optimizer.Adam(learning_rate=lr_init, beta1=beta1)
-
-    ## pretrain
-    opt.minimize(loss=mse_loss, parameter_list=g_vars)
     ## SRGAN
-    opt.minimize(loss=d_loss, parameter_list=d_vars)
     opt.minimize(loss=g_loss, parameter_list=g_vars)
+    opt.minimize(loss=d_loss, parameter_list=d_vars)
+
+    place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
+
+    ## reader
+    batch_train_hr_reader = paddle.batch(data_reader.train_hr_reader(), batch_size)()
+    max_imgs = data_reader.len_train_hr_img()
+    for epoch in range(0, n_epoch_init + 1):
+        epoch_time = time.time()
+        total_mse_loss, batch_id = 0, 0
+        for idx in range(0, max_imgs, batch_size):
+            data=next(batch_train_hr_reader)
+            data_thr=[]
+            data_tlr=[]
+            for thr,tlr in data:
+                data_thr.append(thr)
+                data_tlr.append(tlr)
+            data_thr=np.array(data_thr)
+            data_thr=np.squeeze(data_thr)
+
+            data_tlr=np.array(data_tlr)
+            data_tlr=np.squeeze(data_tlr)
+            _mse_loss = exe.run(program=g_pretrain_program, fetch_list=[mse_loss], feed={
+                't_image':data_thr,
+                't_target_image':data_tlr
+            })
+
+            _d_loss,_d_loss1,_d_loss2 = exe.run(program=g_program, fetch_list=[d_loss,d_loss1,d_loss2],feed={
+                't_image':data_thr,
+                't_target_image':data_tlr                
+            })
+
+            _g_loss, _g_mse_loss, _vgg_loss, _g_gan_loss = exe.run(program=g_program, fetch_list=[g_loss, mse_loss, vgg_loss, g_gan_loss],feed={
+                't_image':data_thr,
+                't_target_image':data_tlr                
+            })
+
+
+
+
 
     
 if __name__ == '__main__':
