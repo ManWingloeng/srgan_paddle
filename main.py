@@ -171,11 +171,13 @@ def train():
         total_mse_loss, batch_id = 0, 0
         for idx in range(0, max_imgs, batch_size):
             data=next(batch_train_hr_reader)
-            data_thr=[]
-            data_tlr=[]
-            for thr,tlr in data:
-                data_thr.append(thr)
-                data_tlr.append(tlr)
+            data_thr = map(lambda x: x[0], data)
+            data_tlr = map(lambda x: x[1], data)
+            # data_thr=[]
+            # data_tlr=[]
+            # for thr,tlr in data:
+            #     data_thr.append(thr)
+            #     data_tlr.append(tlr)
             data_thr=np.array(data_thr)
             data_thr=np.squeeze(data_thr)
 
