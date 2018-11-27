@@ -168,39 +168,66 @@ def train():
     max_imgs = data_reader.len_train_hr_img()
     for epoch in range(0, n_epoch_init + 1):
         epoch_time = time.time()
+        epoch_d_fake_loss = []
+        epoch_d_real_loss = []
+        epoch_d_loss = []
+        epoch_g_gan_loss = []
+        epoch_g_mse_loss = []
+        epoch_g_vgg_loss = []
+        epoch_g_loss = []
+        epoch_mse_loss = []
         total_mse_loss, batch_id = 0, 0
         for idx in range(0, max_imgs, batch_size):
             data=next(batch_train_hr_reader)
+<<<<<<< HEAD
             data_thr = map(lambda x: x[0], data)
             data_tlr = map(lambda x: x[1], data)
+=======
+>>>>>>> 54739e4530cf35d2200c0ccefb121601dd830f20
             # data_thr=[]
             # data_tlr=[]
             # for thr,tlr in data:
             #     data_thr.append(thr)
             #     data_tlr.append(tlr)
+<<<<<<< HEAD
+=======
+            data_thr = map(lambda x: x[0], data)
+            data_tlr = map(lambda x: x[1], data)
+>>>>>>> 54739e4530cf35d2200c0ccefb121601dd830f20
             data_thr=np.array(data_thr)
             data_thr=np.squeeze(data_thr)
 
             data_tlr=np.array(data_tlr)
             data_tlr=np.squeeze(data_tlr)
             _mse_loss = exe.run(program=g_pretrain_program, fetch_list=[mse_loss], feed={
-                't_image':data_thr,
-                't_target_image':data_tlr
+                't_image':data_tlr,
+                't_target_image':data_thr
             })
+            epoch_mse_loss.append(np.mean(_mse_loss))
 
             _d_loss,_d_loss1,_d_loss2 = exe.run(program=g_program, fetch_list=[d_loss,d_loss1,d_loss2],feed={
-                't_image':data_thr,
-                't_target_image':data_tlr                
+                't_image':data_tlr,
+                't_target_image':data_thr                
             })
+            epoch_d_fake_loss.append(_d_loss2)
+            epoch_d_real_loss.append(_d_loss1)
+            epoch_d_loss.append(_d_loss)
+
 
             _g_loss, _g_mse_loss, _vgg_loss, _g_gan_loss = exe.run(program=g_program, fetch_list=[g_loss, mse_loss, vgg_loss, g_gan_loss],feed={
                 't_image':data_thr,
                 't_target_image':data_tlr                
             })
-
-
-
-
+            epoch_g_gan_loss.append(_g_gan_loss)
+            epoch_g_mse_loss.append(_g_mse_loss)
+            epoch_g_vgg_loss.append(_vgg_loss)
+            epoch_g_loss.append(_g_loss)
+            if idx % 50 == 0:
+                print("Epoch {} batch {}:\n d_loss {} | d_fake_loss {} | d_real_loss {}\n \
+                        g_loss {} | g_gan_loss {} | g_mse_loss {} | g_vgg_loss {}\n \
+                        pre_mse_loss {}".format(epoch, idx, np.mean(epoch_d_loss), np.mean(epoch_d_fake_loss), 
+                        np.mean(epoch_d_real_loss), np.mean(epoch_g_loss), np.mean(epoch_g_gan_loss), 
+                        np.mean(epoch_g_mse_loss), np.mean(epoch_g_vgg_loss), np.mean(epoch_mse_loss)))
 
     
 if __name__ == '__main__':
