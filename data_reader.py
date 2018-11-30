@@ -92,8 +92,8 @@ def reader_creater_hr(list_file, root_dir, shuffle=True, return_name=False):
                 #     continue
                 image = image[:, :, 0:3].astype("float32")
                 image_lr = image_lr[:, :, 0:3].astype("float32")
-                image = image.transpose([2, 0, 1])
-                image_lr = image_lr.transpose([2, 0, 1])
+                # image = image.transpose([2, 0, 1])
+                # image_lr = image_lr.transpose([2, 0, 1])
                 # print(image[np.newaxis, :].shape)
                 if return_name:
                     yield image[np.newaxis, :], image_lr[np.newaxis, :], os.path.basename(file)
@@ -249,11 +249,14 @@ def threading_data(data=None, fn=None, thread_count=None, **kwargs):
 # THR_reader = paddle.batch(train_hr_reader(), 16)()
 # # print(next(THR_reader))
 # data=next(THR_reader)
-# data_thr=[]
-# data_tlr=[]
-# for thr,tlr in data:
-#     data_thr.append(thr)
-#     data_tlr.append(tlr)
+# # data_thr=[]
+# # data_tlr=[]
+# # for thr,tlr in data:
+# #     data_thr.append(thr)
+# #     data_tlr.append(tlr)
+
+# data_thr = map(lambda x: x[0], data)
+# data_tlr = map(lambda x: x[1], data)
 # data_thr=np.array(data_thr)
 # data_thr=np.squeeze(data_thr)
 
@@ -261,23 +264,24 @@ def threading_data(data=None, fn=None, thread_count=None, **kwargs):
 # data_tlr=np.squeeze(data_tlr)
 # print("data_thr:",data_thr.shape)
 # print("data_tlr:",data_tlr.shape)
-# # for img in data_thr:
-#     # print img
-# # for img in data_thr:
-# #     img=np.squeeze(img)
-# #     print(img.shape)
-# # data_tlr=[downsample_fn(np.squeeze(img)) for img in data_thr]
-# # print(data_tlr)
-# # 
-# print(data_tlr.shape)
+# # # for img in data_thr:
+# #     # print img
+# # # for img in data_thr:
+# # #     img=np.squeeze(img)
+# # #     print(img.shape)
+# # # data_tlr=[downsample_fn(np.squeeze(img)) for img in data_thr]
+# # # print(data_tlr)
+# # # 
+# # print(data_tlr.shape)
 # import paddle.v2 as paddle
 # import paddle.fluid as fluid
 
 # infer_program = fluid.default_main_program().clone(for_test=True)
 # with fluid.program_guard(infer_program):
-#     data = fluid.layers.data(name='data',shape=[-1, 3, 384, 384])
+#     data = fluid.layers.data(name='data',shape=[3, 384, 384])
 #     # data_lr = fluid.layers.image_resize(input=data, out_shape=[96, 96], resample='')
-#     data_lr = fluid.layers.data(name='data_lr', shape=[-1, 3, 96, 96])
+#     data_lr = fluid.layers.data(name='data_lr', shape=[3, 96, 96])
+#     print("data_lr_tensor:",data_lr.shape)
 #     predict = fluid.layers.fc(input=data, size=1, act='relu')
 #     softmax = fluid.layers.softmax(predict)
 #     print(data.shape)
@@ -289,7 +293,7 @@ def threading_data(data=None, fn=None, thread_count=None, **kwargs):
 #     'data': data_thr,
 #     'data_lr': data_tlr
 # })
-# print(p)
-# data_tlr=threading_data(data_thr, fn=downsample_fn)
+# # print(p)
+# # data_tlr=threading_data(data_thr, fn=downsample_fn)
 
-# print(data_tlr.shape)
+# # print(data_tlr.shape)

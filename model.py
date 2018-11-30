@@ -29,8 +29,8 @@ def SRGAN_g(t_image, is_test=False, name='G'):
         n = conv(n, 256, 3, name='n256s1/1')
         n = SubpixelConv_relu(n, scale=2, name='pixelshufflerx2/1')
 
-        n = conv(n, 256, 3, name='n256s1/1')
-        n = SubpixelConv_relu(n, scale=2, name='pixelshufflerx2/1')
+        n = conv(n, 256, 3, name='n256s1/2')
+        n = SubpixelConv_relu(n, scale=2, name='pixelshufflerx2/2')
 
         n = conv(n, 3, 1, act='tanh', name='out')
         return n

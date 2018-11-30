@@ -48,83 +48,77 @@ def train():
     if not os.path.isdir(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
-        
-        
-
-
-
     ###========================== DEFINE MODEL ============================###
     ## train inference
-     
+
     d_program = fluid.Program()
     g_program = fluid.Program()
     g_pretrain_program = fluid.Program()
 
-    g_vars = get_param(g_program, prefix='G')
-    d_vars = get_param(d_program, prefix='D')
 
     opt = fluid.optimizer.Adam(learning_rate=lr_init, beta1=beta1)
+    # with fluid.program_guard(g_pretrain_program):
+    #     # # LR img
+    #     t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
+    #     # HR img
+    #     t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
 
-    with fluid.program_guard(g_pretrain_program):
-        # # LR img
-        t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
-        # HR img
-        t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
-        
 
-        # Generate the HR img from LR
-        net_g = SRGAN_g(t_image, is_test=False)
-        # mse loss
-        mse_loss = fluid.layers.reduce_mean(fluid.layers.square_error_cost(net_g, t_target_image))
-        ## pretrain
-        opt.minimize(loss=mse_loss, parameter_list=g_vars)
+    #     # Generate the HR img from LR
+    #     net_g = SRGAN_g(t_image, is_test=False)
+    #     # mse loss
+    #     mse_loss = fluid.layers.reduce_mean(fluid.layers.square_error_cost(net_g, t_target_image))
+    #     ## pretrain
+    #     g_vars = get_param(g_program, prefix='G')
+    #     opt.minimize(loss=mse_loss, parameter_list=g_vars)
     with fluid.program_guard(d_program):
         # LR img
-        t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
+        t_image = fluid.layers.data(name='t_lr_image', shape=[3, 96, 96])
+    #     print("t_image numel:",t_image.numel)
         # HR img
-        t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
-
+        t_target_image = fluid.layers.data(name='t_hr_image', shape=[3, 384, 384])
+    #     print("t_target_image numel:",t_target_image.numel)
         net_g = SRGAN_g(t_image, is_test=False)
-        # print(net_g)
+        print("net_g:",net_g)
         net_d, logits_real = SRGAN_d(t_target_image, is_test=False)
         # print(t_target_image)
         _, logits_fake = SRGAN_d(net_g, is_test=False)
 
-        real_ones = fluid.layers.ones(shape=logits_real.shape, dtype='float32')
-        real_ones.stop_gradient = True
-        fake_ones = fluid.layers.ones(shape=logits_fake.shape, dtype='float32')
-        fake_ones.stop_gradient = True
+        ones_real = fluid.layers.fill_constant_batch_size_like(logits_real, shape=[-1, 1], dtype='float32', value=1)
+        zeros_fake = fluid.layers.fill_constant_batch_size_like(logits_fake, shape=[-1, 1], dtype='float32', value=0)
+
         d_loss1 = fluid.layers.reduce_mean(
             fluid.layers.sigmoid_cross_entropy_with_logits(x=logits_real, 
-                label=real_ones, 
+                label=ones_real, 
                 name='d1'))
         d_loss2 = fluid.layers.reduce_mean(
             fluid.layers.sigmoid_cross_entropy_with_logits(x=logits_fake, 
-                label=fake_ones, 
+                label=zeros_fake, 
                 name='d2'))
         d_loss = d_loss1 + d_loss2
 
     with fluid.program_guard(g_program):
         # LR img
-        t_image = fluid.layers.data(name='t_image', shape=[3, 96, 96])
+        t_image = fluid.layers.data(name='t_lr_image', shape=[3, 96, 96])
         # HR img
-        t_target_image = fluid.layers.data(name='t_target_image', shape=[3, 384, 384])
+        t_target_image = fluid.layers.data(name='t_hr_image', shape=[3, 384, 384])
 
         # Generate the HR img from LR
         net_g = SRGAN_g(t_image, is_test=False)
-        
+        print("net_g:",net_g)
         ## clone for test
         net_g_test_program = g_program.clone(for_test=True)
-        
+
         # net_d, logits_real = SRGAN_d(t_target_image, is_test=False)
         _, logits_fake = SRGAN_d(net_g, is_test=False)
         
+        ones_fake = fluid.layers.fill_constant_batch_size_like(logits_fake, shape=[-1, 1], dtype='float32', value=1)
         # 0.001 gan loss
         g_gan_loss = 1e-3 * fluid.layers.reduce_mean( 
                 fluid.layers.sigmoid_cross_entropy_with_logits(logits_fake, 
-                fluid.layers.ones(shape=logits_fake.shape,dtype='float32'), 
+                ones_fake, 
                 name='g'))
-        
+
         # mse loss
         mse_loss = fluid.layers.reduce_mean(fluid.layers.square_error_cost(net_g, t_target_image))
 
@@ -140,7 +134,7 @@ def train():
 
         # vgg19_program, vgg19_feed_names, vgg19_fetch_targets = fluid.io.load_inference_model('./VGG19_pd_model_param', 
         #                                                            exe, 'vgg19_model', 'vgg19_params')
-        
+
         # print t_target_image_224.shape
         # tt_input = (t_target_image_224 + 1) / 2
         # print tt_input
@@ -154,80 +148,90 @@ def train():
 
         g_loss = mse_loss + g_gan_loss + vgg_loss
 
-
+    g_vars = get_param(g_program, prefix='G')
+    d_vars = get_param(d_program, prefix='D')
+    # print("g_vars:\n",g_vars)
     ## SRGAN
     opt.minimize(loss=g_loss, parameter_list=g_vars)
     opt.minimize(loss=d_loss, parameter_list=d_vars)
 
-    place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
-    exe = fluid.Executor(place)
-    exe.run(fluid.default_startup_program())
+    #     place = fluid.CUDAPlace(1) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
+    scope = fluid.core.Scope()
+    with fluid.scope_guard(scope):
+        place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        exe.run(fluid.default_startup_program())
 
-    ## reader
-    batch_train_hr_reader = paddle.batch(data_reader.train_hr_reader(), batch_size)()
-    max_imgs = data_reader.len_train_hr_img()
-    for epoch in range(0, n_epoch_init + 1):
-        epoch_time = time.time()
-        epoch_d_fake_loss = []
-        epoch_d_real_loss = []
-        epoch_d_loss = []
-        epoch_g_gan_loss = []
-        epoch_g_mse_loss = []
-        epoch_g_vgg_loss = []
-        epoch_g_loss = []
-        epoch_mse_loss = []
-        total_mse_loss, batch_id = 0, 0
-        for idx in range(0, max_imgs, batch_size):
-            data=next(batch_train_hr_reader)
-<<<<<<< HEAD
-            data_thr = map(lambda x: x[0], data)
-            data_tlr = map(lambda x: x[1], data)
-=======
->>>>>>> 54739e4530cf35d2200c0ccefb121601dd830f20
-            # data_thr=[]
-            # data_tlr=[]
-            # for thr,tlr in data:
-            #     data_thr.append(thr)
-            #     data_tlr.append(tlr)
-<<<<<<< HEAD
-=======
-            data_thr = map(lambda x: x[0], data)
-            data_tlr = map(lambda x: x[1], data)
->>>>>>> 54739e4530cf35d2200c0ccefb121601dd830f20
-            data_thr=np.array(data_thr)
-            data_thr=np.squeeze(data_thr)
+        ## VGG19 load params
+        # fluid.io.load_params(exe, "/home/aistudio/work/data/vgg_pd_params")
+        fluid.io.load_params(exe, "/home/aistudio/work/data/vgg_pd_params")
 
-            data_tlr=np.array(data_tlr)
-            data_tlr=np.squeeze(data_tlr)
-            _mse_loss = exe.run(program=g_pretrain_program, fetch_list=[mse_loss], feed={
-                't_image':data_tlr,
-                't_target_image':data_thr
-            })
-            epoch_mse_loss.append(np.mean(_mse_loss))
+        ## reader
+        #     batch_train_hr_reader = paddle.batch(data_reader.train_hr_reader(), batch_size)()
+        #     max_imgs = data_reader.len_train_hr_img()
+        from data_reader import *
+        batch_train_hr_reader = paddle.batch(train_hr_reader(), batch_size)()
+        max_imgs = len_train_hr_img()
+        for epoch in range(0, n_epoch_init + 1):
+            epoch_time = time.time()
+            epoch_d_fake_loss = []
+            epoch_d_real_loss = []
+            epoch_d_loss = []
+            epoch_g_gan_loss = []
+            epoch_g_mse_loss = []
+            epoch_g_vgg_loss = []
+            epoch_g_loss = []
+            epoch_mse_loss = []
+            total_mse_loss, batch_id = 0, 0
+            for idx in range(0, max_imgs, batch_size):
+                print("Training Epoch {} batch {}").format(epoch, idx)
+                data=next(batch_train_hr_reader)
+        #             data_thr=[]
+        #             data_tlr=[]
+        #             for thr,tlr in data:
+        #                 data_thr.append(thr)
+        #                 data_tlr.append(tlr)
+                data_thr = map(lambda x: x[0], data)
+                data_tlr = map(lambda x: x[1], data)
 
-            _d_loss,_d_loss1,_d_loss2 = exe.run(program=g_program, fetch_list=[d_loss,d_loss1,d_loss2],feed={
-                't_image':data_tlr,
-                't_target_image':data_thr                
-            })
-            epoch_d_fake_loss.append(_d_loss2)
-            epoch_d_real_loss.append(_d_loss1)
-            epoch_d_loss.append(_d_loss)
+                data_thr=np.array(data_thr)
+                data_thr=np.squeeze(data_thr)
+
+                data_tlr=np.array(data_tlr)
+                data_tlr=np.squeeze(data_tlr)
+    #             print("data_thr",data_thr.shape)
+    #             print("data_tlr",data_tlr.shape)
+        #         print(data_thr.numel)
+        #         print(data)
+        #         _mse_loss = exe.run(program=g_pretrain_program, fetch_list=[mse_loss], feed={
+        #             't_image':data_tlr,
+        #             't_target_image':data_thr
+        #         })
+        #         epoch_mse_loss.append(np.mean(_mse_loss))
+
+                _d_loss,_d_loss1,_d_loss2 = exe.run(program=d_program, fetch_list=[d_loss,d_loss1,d_loss2],feed={
+                    't_lr_image':data_tlr,
+                    't_hr_image':data_thr,              
+                })
+                epoch_d_fake_loss.append(_d_loss2)
+                epoch_d_real_loss.append(_d_loss1)
+                epoch_d_loss.append(_d_loss)
 
 
-            _g_loss, _g_mse_loss, _vgg_loss, _g_gan_loss = exe.run(program=g_program, fetch_list=[g_loss, mse_loss, vgg_loss, g_gan_loss],feed={
-                't_image':data_thr,
-                't_target_image':data_tlr                
-            })
-            epoch_g_gan_loss.append(_g_gan_loss)
-            epoch_g_mse_loss.append(_g_mse_loss)
-            epoch_g_vgg_loss.append(_vgg_loss)
-            epoch_g_loss.append(_g_loss)
-            if idx % 50 == 0:
-                print("Epoch {} batch {}:\n d_loss {} | d_fake_loss {} | d_real_loss {}\n \
-                        g_loss {} | g_gan_loss {} | g_mse_loss {} | g_vgg_loss {}\n \
-                        pre_mse_loss {}".format(epoch, idx, np.mean(epoch_d_loss), np.mean(epoch_d_fake_loss), 
+                _g_loss, _g_mse_loss, _vgg_loss, _g_gan_loss = exe.run(program=g_program, fetch_list=[g_loss, mse_loss, vgg_loss, g_gan_loss],feed={
+                    't_lr_image':data_tlr,
+                    't_hr_image':data_thr,                
+                })
+                epoch_g_gan_loss.append(_g_gan_loss)
+                epoch_g_mse_loss.append(_g_mse_loss)
+                epoch_g_vgg_loss.append(_vgg_loss)
+                epoch_g_loss.append(_g_loss)
+                if idx % 50 == 0:
+                    print("Epoch {} batch {}:\n d_loss {} | d_fake_loss {} | d_real_loss {}\n g_loss {} | g_gan_loss {} | g_mse_loss {} | g_vgg_loss {}\n ".format(
+                        epoch, idx, np.mean(epoch_d_loss), np.mean(epoch_d_fake_loss), 
                         np.mean(epoch_d_real_loss), np.mean(epoch_g_loss), np.mean(epoch_g_gan_loss), 
-                        np.mean(epoch_g_mse_loss), np.mean(epoch_g_vgg_loss), np.mean(epoch_mse_loss)))
+                        np.mean(epoch_g_mse_loss), np.mean(epoch_g_vgg_loss)))
+
 
     
 if __name__ == '__main__':
